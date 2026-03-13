@@ -1,0 +1,7 @@
+[package]
+name = "krida-strategy"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+krida-core = { path = "../krida-core" }
