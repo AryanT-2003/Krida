@@ -1,12 +1,13 @@
 pub(crate) use krida_core::{Move, Strategy};
 
+//Tit for Tat
 pub struct TitForTat {
-    pub id: usize,
+    pub stat_id: usize,
 }
 
 impl Strategy for TitForTat {
     fn id(&self) -> usize {
-        self.id
+        self.stat_id
     }
     fn name(&self) -> &str {
         "Tit-for-Tat"
@@ -18,17 +19,20 @@ impl Strategy for TitForTat {
         }
     }
     fn clone_box(&self) -> Box<dyn Strategy> {
-        Box::new(TitForTat { id: self.id })
+        Box::new(TitForTat {
+            stat_id: self.stat_id,
+        })
     }
 }
 
+// Grudger
 pub struct Grudger {
-    pub id: usize,
+    pub strat_id: usize,
 }
 
 impl Strategy for Grudger {
     fn id(&self) -> usize {
-        self.id
+        self.strat_id
     }
     fn name(&self) -> &str {
         "Grudger"
@@ -42,6 +46,8 @@ impl Strategy for Grudger {
         }
     }
     fn clone_box(&self) -> Box<dyn Strategy> {
-        Box::new(Grudger { id: self.id })
+        Box::new(Grudger {
+            strat_id: self.strat_id,
+        })
     }
 }

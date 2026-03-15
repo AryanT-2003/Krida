@@ -1,12 +1,26 @@
-use std::collections::HashMap;
-
 use rand::RngExt;
+use std::collections::HashMap;
 
 /*
 Strategy - Generate moves - consuming: History of prev rounds, Current Score, Round No. and produce - a move (Cooperate OR Defect)
 
 Core - Start a Tournament, with N rounds/games, Scoreboard, Move History. For each game 2 players/strategy will provide their move. Evaluate Game result - Who gain, update score, update history. Check if tournament ends. If yes END If no REPEAT.
 */
+struct Player {
+    uuid: usize,
+    strategy: Box<dyn Strategy>,
+}
+
+impl Player {
+    fn new(uuid: usize, strategy: Box<dyn Strategy>) -> Self {
+        Self { uuid, strategy }
+    }
+
+    fn make_move(&self, my_current_history: &[Move], their_current_history: &[Move]) -> Move {
+        self.strategy
+            .decide(my_current_history, their_current_history)
+    }
+}
 
 pub trait Strategy {
     fn name(&self) -> &str;
@@ -16,6 +30,69 @@ pub trait Strategy {
 
     fn clone_box(&self) -> Box<dyn Strategy>;
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Move {
+    Cooperate,
+    Defect,
+}
+
+struct Payoff {
+    sucker: u32,
+    punishment: u32,
+    reward: u32,
+    temptation: u32,
+}
+
+impl Payoff {
+    fn default() -> Self {
+        Self {
+            sucker: 0,
+            punishment: 1,
+            reward: 3,
+            temptation: 5,
+        }
+    }
+
+    fn resolve_dilemma(&self, player_move: &Move, opponent_move: &Move) -> Resolution {
+        match (player_move, opponent_move) {
+            (Move::Cooperate, Move::Cooperate) => Resolution {
+                player_gain: self.reward,
+                opponent_gain: self.reward,
+            },
+            (Move::Cooperate, Move::Defect) => Resolution {
+                player_gain: self.sucker,
+                opponent_gain: self.temptation,
+            },
+            (Move::Defect, Move::Cooperate) => Resolution {
+                player_gain: self.temptation,
+                opponent_gain: self.sucker,
+            },
+            (Move::Defect, Move::Defect) => Resolution {
+                player_gain: self.punishment,
+                opponent_gain: self.punishment,
+            },
+        }
+    }
+}
+
+#[derive(Default)]
+struct Scoreboard {
+    player_score: u32,
+    opponent_score: u32,
+}
+impl Scoreboard {
+    fn update_scoreboard(&mut self, resolution: &Resolution) {
+        self.player_score += resolution.player_gain;
+        self.opponent_score += resolution.opponent_gain;
+    }
+}
+
+struct Resolution {
+    player_gain: u32,
+    opponent_gain: u32,
+}
+
 struct GameState {
     total_dilemmas: usize,
     current_dilemma: usize,
@@ -72,89 +149,27 @@ impl GameState {
         self.current_dilemma >= self.total_dilemmas
     }
 }
-#[derive(Default)]
-struct Scoreboard {
-    player_score: u32,
-    opponent_score: u32,
-}
-impl Scoreboard {
-    fn update_scoreboard(&mut self, resolution: &Resolution) {
-        self.player_score += resolution.player_gain;
-        self.opponent_score += resolution.opponent_gain;
-    }
-}
 
-struct Payoff {
-    sucker: u32,
-    punishment: u32,
-    reward: u32,
-    temptation: u32,
-}
-
-impl Default for Payoff {
-    fn default() -> Self {
-        Self {
-            sucker: 0,
-            punishment: 1,
-            reward: 3,
-            temptation: 5,
-        }
-    }
-}
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Move {
-    Cooperate,
-    Defect,
-}
-
-struct Resolution {
-    player_gain: u32,
-    opponent_gain: u32,
-}
-
-fn resolve_dilemma(player_move: &Move, opponent_move: &Move, payoff: &Payoff) -> Resolution {
-    match (player_move, opponent_move) {
-        (Move::Cooperate, Move::Cooperate) => Resolution {
-            player_gain: payoff.reward,
-            opponent_gain: payoff.reward,
-        },
-        (Move::Cooperate, Move::Defect) => Resolution {
-            player_gain: payoff.sucker,
-            opponent_gain: payoff.temptation,
-        },
-        (Move::Defect, Move::Cooperate) => Resolution {
-            player_gain: payoff.temptation,
-            opponent_gain: payoff.sucker,
-        },
-        (Move::Defect, Move::Defect) => Resolution {
-            player_gain: payoff.punishment,
-            opponent_gain: payoff.punishment,
-        },
-    }
-}
-
-fn run_game(player: &dyn Strategy, opponent: &dyn Strategy, payoff: &Payoff) -> GameState {
+fn run_game(player: &Player, opponent: &Player, payoff: &Payoff) -> GameState {
     let n: usize = rand::rng().random_range(150..=250);
-    let player_id = player.id();
-    let opponent_id = opponent.id();
-    let mut game_state = GameState::new(n, player_id, opponent_id);
+    let mut game_state = GameState::new(n, player.uuid, opponent.uuid);
 
     loop {
         // Player perspective
         let (self_current_history, their_current_history) =
-            game_state.get_current_history(player_id, opponent_id);
-        let player_move: Move = player.decide(self_current_history, their_current_history);
+            game_state.get_current_history(player.uuid, opponent.uuid);
+        let player_move: Move = player.make_move(self_current_history, their_current_history);
 
         // Oppoenent perspective
         let (self_current_history, their_current_history) =
-            game_state.get_current_history(opponent_id, player_id);
-        let opponent_move: Move = opponent.decide(self_current_history, their_current_history);
+            game_state.get_current_history(opponent.uuid, player.uuid);
+        let opponent_move: Move = opponent.make_move(self_current_history, their_current_history);
 
-        let resolution = resolve_dilemma(&player_move, &opponent_move, payoff);
+        let resolution = payoff.resolve_dilemma(&player_move, &opponent_move);
 
         game_state.apply_resolution(
-            player_id,
-            opponent_id,
+            player.uuid,
+            opponent.uuid,
             player_move,
             opponent_move,
             resolution,
