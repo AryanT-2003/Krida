@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 krida-core = { path = "../krida-core" }
+rand = {workspace = true}

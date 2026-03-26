@@ -8,3 +8,4 @@ edition = "2024"
 version = "0.1.0"
 
 [workspace.dependencies]
+rand = "0.10.0"
